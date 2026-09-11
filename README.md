@@ -39,7 +39,7 @@ YantrikDB is different. It's a **cognitive memory engine** — embed it, run it 
 
 At 500 memories, file-based memory exceeds 32K context. At 5,000, it doesn't fit in any model — not even 200K. YantrikDB stays at ~70 tokens per query. **Precision improves with more data** — the opposite of context stuffing.
 
-Reproduce: `python benchmarks/bench_token_savings.py`
+Reproduce: the script lives in [yantrikdb-mcp](https://github.com/yantrikos/yantrikdb-mcp/blob/main/benchmarks/bench_token_savings.py), not this repo -- `git clone https://github.com/yantrikos/yantrikdb-mcp && cd yantrikdb-mcp && python benchmarks/bench_token_savings.py`
 
 ---
 
