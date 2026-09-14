@@ -5,6 +5,22 @@ All notable changes to `yantrikdb-server` are recorded here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.19.0] — 2026-09-14
+
+Engine pin `0.22.0` → **`0.23.0`** (one engine release; schema stays v54, so no migration and
+no heal on upgrade). No server API change.
+
+### Changed
+- **Recall results carry `event_time_min` / `event_time_max`** sourced from the v48 columns
+  (engine #181/#229); `recall_as_of` rollback fixed. Existing response shapes are unchanged
+  apart from the added fields.
+- **Engine inspect reads exist** (`claims_for_memory`, `revision_history`, `memory_entities`,
+  engine #232) but this server does not expose them yet; they back the packaged Memory Atlas
+  (`yantrikdb atlas`) and the new terminal explorer `yantrikdb-tui`, both shipped with the
+  engine release.
+
+Suite green against 0.23.0: 931 + 356 + 350 + 15 + 13 + 6 + 4 + 2 + 2 passed, 0 failed.
+
 ## [0.18.0] — 2026-09-07
 
 Engine pin `0.18.0` → **`0.22.0`** (four engine releases; schema v42 → v54, additive, migrates
