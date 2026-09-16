@@ -418,6 +418,7 @@ db.upcoming(days=7)  # memories with approaching deadlines
 | [langchain-yantrikdb](https://github.com/yantrikos/langchain-yantrikdb) | LangChain `VectorStore` + `ChatMessageHistory` with explainable recall | `pip install langchain-yantrikdb` | [GitHub](https://github.com/yantrikos/langchain-yantrikdb) · [PyPI](https://pypi.org/project/langchain-yantrikdb/) |
 | [yantrikdb-hermes-plugin](https://github.com/yantrikos/yantrikdb-hermes-plugin) | Memory provider for NousResearch/hermes-agent, with a reproducible recall benchmark | `pip install yantrikdb-hermes-plugin` | [GitHub](https://github.com/yantrikos/yantrikdb-hermes-plugin) · [PyPI](https://pypi.org/project/yantrikdb-hermes-plugin/) |
 | [yantrik-memory](https://github.com/yantrikos/yantrik-memory) | Framework-agnostic Python memory layer — traits, bond evolution, knowledge graph | `pip install yantrik-memory` | [GitHub](https://github.com/yantrikos/yantrik-memory) · [PyPI](https://pypi.org/project/yantrik-memory/) |
+| [openclaw-memory-yantrikdb](https://github.com/yantrikos/openclaw-memory-yantrikdb) | OpenClaw memory plugin — conflict-aware session briefings, recall with retrieval reasons, auto-capture | `openclaw plugins install npm:@yantrikos/openclaw-memory-yantrikdb` | [GitHub](https://github.com/yantrikos/openclaw-memory-yantrikdb) |
 
 ## Roadmap
 
