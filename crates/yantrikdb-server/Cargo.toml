@@ -1,6 +1,6 @@
 [package]
 name = "yantrikdb-server"
-version = "0.19.0"
+version = "0.19.1"
 edition = "2021"
 description = "YantrikDB database server — multi-tenant cognitive memory with wire protocol, HTTP gateway, replication, auto-failover, and at-rest encryption"
 license = "Apache-2.0"
@@ -32,7 +32,7 @@ path = "src/main.rs"
 # 0.12.x `recall_as_of` (bitemporal, surfaced via /v1/temporal/as_of in RFC 032)
 # + chunked embeddings + recency-wall-down; the EXPLAIN surface (0.13.1) is still
 # unsurfaced. Engine owns no timer thread — host drives run_maintenance_cycle().
-yantrikdb = { version = "0.23.0", git = "https://github.com/yantrikos/yantrikdb.git", rev = "a8546fa9000d3da9691964e3c00d36b32083b526" }
+yantrikdb = { version = "0.23.1", git = "https://github.com/yantrikos/yantrikdb.git", rev = "597fdcee9d55a2f7f8ac511a40dc2c72f136f5c6" }
 yantrikdb-protocol = { version = "0.1.0", path = "../yantrikdb-protocol" }
 
 # Async runtime
