@@ -5,6 +5,26 @@ All notable changes to `yantrikdb-server` are recorded here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.19.1] — 2026-09-19
+
+Engine pin `0.23.0` → **`0.23.1`** (a patch release; schema stays v54, so no migration and no
+heal on upgrade). No server API change.
+
+### Changed
+- Keeps the server on the current engine. **No server behaviour changes.**
+- The one engine-core change in 0.23.1 is #239: a text-changing `correct()` now closes the
+  validity window on claims whose subject or object left the text. No server route performs a
+  correction today (`/v1/correct` answers `501 not_yet_available_over_http`, because
+  correction is a cluster-global write with no replication path yet). So the fix is carried
+  here, ready for when correction is exposed, and changes nothing a client of this server can
+  observe.
+- The other engine 0.23.1 changes are in the Python binding and CLI (attached-embedder
+  precedence #240, `yantrikdb conflicts` #244) and do not reach this server.
+
+Lockfile: moving the engine's git source re-resolved its dependency tree within declared
+ranges. `hyper-util`, `quinn` and `quinn-udp` now use `socket2 0.6.3` (the version `tokio`
+already used); `tonic` stays on `0.5.10`. The engine's own dependencies did not change.
+
 ## [0.19.0] — 2026-09-14
 
 Engine pin `0.22.0` → **`0.23.0`** (one engine release; schema stays v54, so no migration and
