@@ -224,7 +224,7 @@ That's the newest throughput data checked into the repo — it hasn't been re-ru
 
 ## Status
 
-**v0.19.1** — in production use. The embeddable engine has been used in production by the YantrikOS ecosystem since early 2026; the network server runs live on a multi-node Proxmox cluster with multiple tenants.
+**v0.20.0** — in production use. The embeddable engine has been used in production by the YantrikOS ecosystem since early 2026; the network server runs live on a multi-node Proxmox cluster with multiple tenants.
 
 Since the early alpha line, the server has moved from a raft-lite prototype to **openraft-based HA clustering** (2-voter + 1-witness), added **mounted read-only memory packs** (`/v1/packs`, `/v1/pack-context`), reached **HTTP route parity** with the embedded engine (RFC 032), and picked up the engine's **claim grounding + temporal validity windows** on recalled claims and its more precise entity/relation extraction. Operational hardening from the original hardening sprint — `parking_lot` mutexes with runtime deadlock detection, per-handler Prometheus metrics, chaos-tested failover, per-tenant quotas — remains in place and has kept pace release-to-release.
 

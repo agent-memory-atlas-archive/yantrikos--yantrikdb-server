@@ -5,7 +5,7 @@ All notable changes to `yantrikdb-server` are recorded here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.20.0] — 2026-10-14
 
 ### Added
 - **Studio v3 — the `/admin` console is now a modular application** (`crates/yantrikdb-server/studio/`),
