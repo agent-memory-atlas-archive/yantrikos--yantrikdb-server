@@ -7,6 +7,14 @@
  *   ctx = { params, quiet, fetch }
  * `quiet`  — a background repaint (poll tick): no skeleton, no entrance animation.
  * `fetch`  — false when only local UI state changed; views reuse cached data.
+ *
+ * Render rules that keep the console honest under a slow server:
+ *  - a *coalescing* render (the poller's repaint) is skipped while any render
+ *    is already in flight — it must never supersede a render that is waiting
+ *    on the server, or a hung request would restart the wait forever and the
+ *    page would never show its error;
+ *  - a quiet render that fails leaves a good page on screen (the stale-data
+ *    banner comes from the overview state), and only replaces a skeleton.
  */
 
 import { html } from '../core/html.js';
@@ -17,6 +25,7 @@ import { router } from './routes.js';
 
 const main = () => document.getElementById('main');
 let seq = 0;
+let active = 0; // renders currently in flight
 
 const skeleton = () =>
   html`<div class="skel"></div><div class="skel" style="height:140px"></div><div class="skel" style="height:220px"></div>`;
@@ -40,7 +49,17 @@ export function currentRoute() {
   return router.current();
 }
 
-export async function renderRoute({ quiet = false, fetch = true } = {}) {
+export async function renderRoute({ quiet = false, fetch = true, coalesce = false } = {}) {
+  if (coalesce && active > 0) return;
+  active++;
+  try {
+    await renderNow({ quiet, fetch });
+  } finally {
+    active--;
+  }
+}
+
+async function renderNow({ quiet, fetch }) {
   const { route, params } = router.current();
   const el = main();
   const mine = ++seq;
@@ -53,7 +72,10 @@ export async function renderRoute({ quiet = false, fetch = true } = {}) {
   const scroll = el.scrollTop;
   const focus = captureFocus();
   el.classList.toggle('anim', !quiet && fetch);
-  if (!quiet && fetch && !route.noSkeleton) el.innerHTML = skeleton().toString();
+  if (!quiet && fetch && !route.noSkeleton) {
+    el.innerHTML = skeleton().toString();
+    el.dataset.state = 'loading';
+  }
 
   try {
     const view = await route.view();
@@ -61,12 +83,16 @@ export async function renderRoute({ quiet = false, fetch = true } = {}) {
     const out = await view.render({ params, quiet, fetch, route });
     if (mine !== seq) return; // a newer render superseded this one
     el.innerHTML = out.toString();
+    el.dataset.state = 'ready';
     el.scrollTop = quiet || !fetch ? scroll : 0;
     restoreFocus(focus);
     if (view.after) view.after({ params });
   } catch (e) {
     if (mine !== seq) return;
+    // A background repaint must not wipe a page the user is looking at.
+    if (quiet && el.dataset.state === 'ready') return;
     el.innerHTML = unavailable('This page could not be loaded', e.message || 'Something went wrong').toString();
+    el.dataset.state = 'error';
   }
 }
 

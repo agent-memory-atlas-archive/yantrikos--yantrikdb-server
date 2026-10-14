@@ -17,11 +17,12 @@ const TOKEN_KEY = 'ydb_sess';
 export const DEFAULT_TIMEOUT_MS = 20_000;
 
 export class ApiError extends Error {
-  constructor(message, status, { timeout = false } = {}) {
+  constructor(message, status, { timeout = false, superseded = false } = {}) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
     this.timeout = timeout;
+    this.superseded = superseded;
   }
 }
 
@@ -50,7 +51,7 @@ export function errorMessage(body, status) {
   );
 }
 
-async function request(path, { method = 'GET', body, headers = {}, rawBody, token = auth.token, timeoutMs = DEFAULT_TIMEOUT_MS } = {}) {
+async function request(path, { method = 'GET', body, headers = {}, rawBody, token = auth.token, timeoutMs = DEFAULT_TIMEOUT_MS, signal } = {}) {
   const h = { ...headers };
   if (token) h.Authorization = `Bearer ${token}`;
   let payload;
@@ -63,10 +64,15 @@ async function request(path, { method = 'GET', body, headers = {}, rawBody, toke
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
+  // A caller can abandon the request (a newer one supersedes it).
+  if (signal) signal.aborted ? controller.abort() : signal.addEventListener('abort', () => controller.abort(), { once: true });
   let res;
   try {
     res = await fetch(path, { method, headers: h, body: payload, cache: 'no-store', signal: controller.signal });
   } catch (e) {
+    if (e && e.name === 'AbortError' && signal && signal.aborted) {
+      throw new ApiError('Request superseded by a newer one', 0, { superseded: true });
+    }
     if (e && e.name === 'AbortError') {
       throw new ApiError(`No answer from the server after ${Math.round(timeoutMs / 1000)}s — it may be busy with a long-running operation`, 0, { timeout: true });
     }

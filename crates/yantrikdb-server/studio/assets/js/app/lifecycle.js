@@ -15,7 +15,7 @@ const $ = (id) => document.getElementById(id);
 
 const poller = createOverviewPoller(() => {
   // Repaint live views only when nothing would be disturbed.
-  if (router.current().route.live && !isModalOpen() && !isDrawerOpen()) renderRoute({ quiet: true });
+  if (router.current().route.live && !isModalOpen() && !isDrawerOpen()) renderRoute({ quiet: true, coalesce: true });
 });
 
 export function setRefresh(ms) {
@@ -51,15 +51,13 @@ export async function boot() {
   // Paint immediately. The overview is fetched in the background with its own
   // timeout, so a busy engine can delay the numbers but never the console.
   renderRoute();
-  fetchOverview()
-    .catch(() => {})
-    .finally(() => renderRoute({ quiet: true }));
+  fetchOverview().catch(() => {}); // shared with the view's own request
   poller.start();
 }
 
 /** "Try again" after the overview failed to load. */
 export async function retryOverview() {
-  await fetchOverview().catch(() => {});
+  await fetchOverview({ force: true }).catch(() => {});
   renderRoute({ quiet: true });
 }
 

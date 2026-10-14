@@ -4,7 +4,7 @@ import { html } from '../core/html.js';
 import { api } from '../core/api.js';
 import { actions } from '../core/actions.js';
 import { epochToIso } from '../core/format.js';
-import { databaseById } from '../app/state.js';
+import { loadDatabase } from './_data.js';
 import { reload } from '../app/host.js';
 import { badge, pageHead, segmented, empty } from '../ui/components.js';
 
@@ -13,8 +13,7 @@ const state = { status: 'open' };
 export default {
   async render({ params }) {
     const id = Number(params.db);
-    const db = databaseById(id);
-    if (!db) return empty('db', 'Database not found.');
+    const db = await loadDatabase(id);
     const r = await api.get(`/v1/admin/ops/databases/${id}/conflicts?limit=200${state.status ? `&status=${state.status}` : ''}`);
     const list = r.conflicts || r.items || [];
 

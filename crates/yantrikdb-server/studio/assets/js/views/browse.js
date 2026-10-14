@@ -5,7 +5,7 @@ import { api } from '../core/api.js';
 import { actions } from '../core/actions.js';
 import { local } from '../core/storage.js';
 import { nf, timestamp } from '../core/format.js';
-import { databaseById } from '../app/state.js';
+import { loadDatabase } from './_data.js';
 import { reload, refresh } from '../app/host.js';
 import { icon } from '../ui/icons.js';
 import { badge, typeBadge, typeColor, bar, pageHead, empty } from '../ui/components.js';
@@ -48,8 +48,7 @@ function cardLayout(rows) {
 export default {
   async render({ params, fetch }) {
     const id = Number(params.db);
-    const db = databaseById(id);
-    if (!db) return empty('db', 'Database not found.');
+    const db = await loadDatabase(id);
     if (state.db !== id) Object.assign(state, { db: id, offset: 0, type: '', domain: '', filter: '' });
     if (fetch) await load(id);
 
