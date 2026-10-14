@@ -228,24 +228,49 @@ fn probe_database(state: &AppState, rec: &crate::control::DatabaseRecord) -> Val
 /// if the engine is busy, answer with the last known numbers marked stale, or
 /// an explicit `busy` marker — never hang.
 async fn database_snapshot(state: &Arc<AppState>, rec: crate::control::DatabaseRecord) -> Value {
-    let cached = probe_cache().lock().get(&rec.id).map(|p| (p.at, p.value.clone()));
+    let st = state.clone();
+    let r = rec.clone();
+    snapshot_with(
+        rec.id,
+        rec.name,
+        rec.created_at,
+        DB_PROBE_WAIT,
+        DB_PROBE_TTL,
+        move || probe_database(&st, &r),
+    )
+    .await
+}
+
+/// The policy behind [`database_snapshot`], with the engine probe injected so
+/// the "engine is stuck" behaviour can be tested without a stuck engine.
+async fn snapshot_with<F>(
+    id: i64,
+    name: String,
+    created_at: String,
+    wait: Duration,
+    ttl: Duration,
+    probe: F,
+) -> Value
+where
+    F: FnOnce() -> Value + Send + 'static,
+{
+    let cached = probe_cache().lock().get(&id).map(|p| (p.at, p.value.clone()));
     if let Some((at, value)) = &cached {
-        if at.elapsed() < DB_PROBE_TTL {
+        if at.elapsed() < ttl {
             return value.clone();
         }
     }
 
-    let claimed = probe_busy().lock().insert(rec.id);
-    if claimed {
-        let st = state.clone();
-        let r = rec.clone();
+    // Single-flight: if a probe for this database is already running (and
+    // possibly stuck behind a lock), do not start another one.
+    if probe_busy().lock().insert(id) {
         let task = tokio::task::spawn_blocking(move || {
-            let _slot = Slot(r.id);
-            let value = probe_database(&st, &r);
-            probe_cache().lock().insert(r.id, Probe { at: Instant::now(), value: value.clone() });
+            let _slot = Slot(id);
+            let value = probe();
+            probe_cache().lock().insert(id, Probe { at: Instant::now(), value: value.clone() });
             value
         });
-        if let Ok(Ok(value)) = tokio::time::timeout(DB_PROBE_WAIT, task).await {
+        if let Ok(Ok(value)) = tokio::time::timeout(wait, task).await {
             return value;
         }
     }
@@ -256,7 +281,7 @@ async fn database_snapshot(state: &Arc<AppState>, rec: crate::control::DatabaseR
             value["age_secs"] = json!(at.elapsed().as_secs());
             value
         }
-        None => json!({ "id": rec.id, "name": rec.name, "created_at": rec.created_at, "busy": true }),
+        None => json!({ "id": id, "name": name, "created_at": created_at, "busy": true }),
     }
 }
 
@@ -557,4 +582,90 @@ pub(super) async fn maintenance_run(
     });
 
     Ok((StatusCode::ACCEPTED, Json(json!({ "started": true, "tenant": q.tenant }))))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Arc as StdArc;
+
+    // The probe cache and single-flight set are process-wide, so each test
+    // uses its own database id.
+    const MS: Duration = Duration::from_millis(1);
+
+    fn ok_value(id: i64, n: i64) -> Value {
+        json!({ "id": id, "name": "db", "active_memories": n })
+    }
+
+    /// A probe that behaves like an engine held by a long maintenance cycle.
+    fn stuck_probe(id: i64, hold: Duration, started: StdArc<AtomicUsize>) -> impl FnOnce() -> Value + Send + 'static {
+        move || {
+            started.fetch_add(1, Ordering::SeqCst);
+            std::thread::sleep(hold);
+            ok_value(id, 1)
+        }
+    }
+
+    #[tokio::test]
+    async fn a_stuck_engine_yields_busy_quickly_instead_of_hanging() {
+        let id = 9_100_001;
+        let started = StdArc::new(AtomicUsize::new(0));
+        let t0 = Instant::now();
+        let v = snapshot_with(id, "db".into(), "now".into(), 50 * MS, 10_000 * MS, stuck_probe(id, 600 * MS, started.clone())).await;
+        assert!(t0.elapsed() < 400 * MS, "must answer within the wait budget, took {:?}", t0.elapsed());
+        assert_eq!(v["busy"], json!(true), "no cached numbers yet, so it must say busy: {v}");
+        assert_eq!(v["name"], json!("db"));
+    }
+
+    #[tokio::test]
+    async fn polling_a_stuck_engine_never_piles_up_probes() {
+        let id = 9_100_002;
+        let started = StdArc::new(AtomicUsize::new(0));
+        for _ in 0..8 {
+            let v = snapshot_with(id, "db".into(), "now".into(), 10 * MS, 10_000 * MS, stuck_probe(id, 500 * MS, started.clone())).await;
+            assert_eq!(v["busy"], json!(true));
+        }
+        assert_eq!(started.load(Ordering::SeqCst), 1, "only one engine probe may be in flight per database");
+    }
+
+    #[tokio::test]
+    async fn once_the_engine_frees_up_fresh_numbers_flow_again() {
+        let id = 9_100_003;
+        let started = StdArc::new(AtomicUsize::new(0));
+        let _ = snapshot_with(id, "db".into(), "now".into(), 10 * MS, 10_000 * MS, stuck_probe(id, 150 * MS, started.clone())).await;
+        tokio::time::sleep(400 * MS).await; // the stuck probe finishes and fills the cache
+        let v = snapshot_with(id, "db".into(), "now".into(), 10 * MS, 10_000 * MS, || json!({"unused": true})).await;
+        assert_eq!(v["active_memories"], json!(1), "the finished probe's numbers are served from cache: {v}");
+        assert!(v.get("busy").is_none() && v.get("stale").is_none());
+    }
+
+    #[tokio::test]
+    async fn expired_cache_with_a_stuck_engine_serves_stale_numbers() {
+        let id = 9_100_004;
+        // Seed a cached value, then make it immediately "expired" with ttl = 0.
+        let first = snapshot_with(id, "db".into(), "now".into(), 500 * MS, 10_000 * MS, move || ok_value(id, 42)).await;
+        assert_eq!(first["active_memories"], json!(42));
+        let started = StdArc::new(AtomicUsize::new(0));
+        let v = snapshot_with(id, "db".into(), "now".into(), 10 * MS, Duration::ZERO, stuck_probe(id, 400 * MS, started)).await;
+        assert_eq!(v["stale"], json!(true), "must fall back to the last known numbers: {v}");
+        assert_eq!(v["active_memories"], json!(42));
+        assert!(v.get("age_secs").is_some());
+    }
+
+    #[tokio::test]
+    async fn a_panicking_probe_releases_its_slot() {
+        let id = 9_100_005;
+        let v = snapshot_with(id, "db".into(), "now".into(), 200 * MS, 10_000 * MS, || -> Value { panic!("engine blew up") }).await;
+        assert_eq!(v["busy"], json!(true));
+        tokio::time::sleep(50 * MS).await;
+        assert!(!probe_busy().lock().contains(&id), "the single-flight slot must be freed even when the probe panics");
+    }
+
+    #[test]
+    fn error_message_prefers_the_nested_server_shape() {
+        assert_eq!(error_message(&json!({"error": {"message": "deep"}})), "deep");
+        assert_eq!(error_message(&json!({"message": "flat"})), "flat");
+        assert_eq!(error_message(&json!({"error": "str"})), "str");
+    }
 }
