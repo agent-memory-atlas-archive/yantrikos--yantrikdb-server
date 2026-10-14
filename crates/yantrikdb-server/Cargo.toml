@@ -32,7 +32,7 @@ path = "src/main.rs"
 # 0.12.x `recall_as_of` (bitemporal, surfaced via /v1/temporal/as_of in RFC 032)
 # + chunked embeddings + recency-wall-down; the EXPLAIN surface (0.13.1) is still
 # unsurfaced. Engine owns no timer thread — host drives run_maintenance_cycle().
-yantrikdb = { version = "0.23.1", git = "https://github.com/yantrikos/yantrikdb.git", rev = "597fdcee9d55a2f7f8ac511a40dc2c72f136f5c6" }
+yantrikdb = { version = "0.23.2", git = "https://github.com/yantrikos/yantrikdb.git", rev = "75ca57a4f57ad1b0a32f76d369efb7907d37c595" }
 yantrikdb-protocol = { version = "0.1.0", path = "../yantrikdb-protocol" }
 
 # Async runtime

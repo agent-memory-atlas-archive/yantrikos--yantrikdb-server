@@ -5,6 +5,48 @@ All notable changes to `yantrikdb-server` are recorded here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **Studio v3 — the `/admin` console is now a modular application** (`crates/yantrikdb-server/studio/`),
+  embedded in the binary by `build.rs` and served at `/admin` and `/admin/assets/*`. Native ES modules,
+  no bundler, works air-gapped. Dashboard with a health score and live charts (the server keeps a
+  one-hour in-memory metrics history), memory browser, query console, conflicts, cluster topology,
+  tokens / users / audit / packs / jobs / maintenance, command palette, light and dark themes.
+  The page ships under a strict CSP (`script-src 'self'`); the app emits no inline script or handler.
+- **`/v1/admin/ops/*`** — session-authed, role-gated endpoints behind the console: `overview`,
+  `databases/{id}/memories`, `databases/{id}/recall`, `databases/{id}/conflicts`, `jobs`,
+  `maintenance/run`. Readonly can read; admin can read jobs and run maintenance.
+- A CI job runs the Studio test suite (Node's built-in runner, zero dependencies).
+
+### Changed
+- **Maintenance started from Studio is a background job.** `POST /v1/admin/ops/maintenance/run`
+  answers `202` immediately; progress and the outcome are reported as `maintenance_run` in the
+  overview, one run at a time per node (`409` otherwise). The master-token route
+  `POST /v1/admin/maintenance/run` is unchanged and still runs synchronously.
+- The shared maintenance runner now resolves its target databases off the async workers, so a slow
+  tenant-pool lock can no longer stall the HTTP server.
+- **The console never blocks on the engine.** Every engine access from the ops endpoints is off the
+  async workers and bounded in time: the overview serves cached per-database numbers (marked
+  `stale`, or `busy` before the first probe) instead of waiting behind a long-running operation,
+  with at most one engine probe per database in flight; user actions answer `504` rather than hang.
+
+Engine pin `0.23.1` → **`0.23.2`** (schema unchanged — the engine diff touches no migration; no
+heal on upgrade). No server API change. Pinned to the commit tag v0.23.2 names (`75ca57a`); lockfile
+regenerated with `cargo update -p yantrikdb`.
+- Engine #246/#250: the credential vault's data key is now wrapped under an Argon2id-derived key
+  instead of being stored as plain base64 next to the ciphertext it decrypts, and unlocked keys are
+  held per vault. This server does not use the vault, so nothing here changes for a server
+  deployment.
+- Engine #247/#248: a failed integrity check now has its own refusal (`IntegrityCheckFailed`) and
+  stops the materializer from starving outside writers; `stats()` gains `integrity_tainted` and
+  `integrity_checks_unconfirmed_since_boot`. `GET /v1/stats` reports a fixed field list and does not
+  surface the new fields.
+- Lockfile: the engine's new `argon2` dependency was already in the tree (admin passwords use it).
+  Moving the engine's git source re-resolved `hyper-util`, `quinn` and `quinn-udp` from
+  `socket2 0.6.3` back to `0.5.10`, within their declared ranges; the engine's own dependencies are
+  otherwise unchanged.
+
 ## [0.19.1] — 2026-09-19
 
 Engine pin `0.23.0` → **`0.23.1`** (a patch release; schema stays v54, so no migration and no
