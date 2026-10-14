@@ -46,7 +46,8 @@ struct Sample {
 const SAMPLE_EVERY: Duration = Duration::from_secs(5);
 const SAMPLE_CAP: usize = 720;
 
-static HISTORY: std::sync::OnceLock<parking_lot::Mutex<VecDeque<Sample>>> = std::sync::OnceLock::new();
+static HISTORY: std::sync::OnceLock<parking_lot::Mutex<VecDeque<Sample>>> =
+    std::sync::OnceLock::new();
 static SAMPLER: std::sync::Once = std::sync::Once::new();
 static STARTED: std::sync::OnceLock<Instant> = std::sync::OnceLock::new();
 
@@ -112,7 +113,10 @@ fn busy_error() -> AppError {
 }
 
 fn join_error(e: tokio::task::JoinError) -> AppError {
-    app_error(StatusCode::INTERNAL_SERVER_ERROR, format!("worker failed: {e}"))
+    app_error(
+        StatusCode::INTERNAL_SERVER_ERROR,
+        format!("worker failed: {e}"),
+    )
 }
 
 fn db_by_id(state: &AppState, id: i64) -> Result<crate::control::DatabaseRecord, AppError> {
@@ -163,8 +167,10 @@ struct Probe {
     value: Value,
 }
 
-static PROBE_CACHE: std::sync::OnceLock<parking_lot::Mutex<HashMap<i64, Probe>>> = std::sync::OnceLock::new();
-static PROBE_BUSY: std::sync::OnceLock<parking_lot::Mutex<HashSet<i64>>> = std::sync::OnceLock::new();
+static PROBE_CACHE: std::sync::OnceLock<parking_lot::Mutex<HashMap<i64, Probe>>> =
+    std::sync::OnceLock::new();
+static PROBE_BUSY: std::sync::OnceLock<parking_lot::Mutex<HashSet<i64>>> =
+    std::sync::OnceLock::new();
 
 fn probe_cache() -> &'static parking_lot::Mutex<HashMap<i64, Probe>> {
     PROBE_CACHE.get_or_init(Default::default)
@@ -254,7 +260,10 @@ async fn snapshot_with<F>(
 where
     F: FnOnce() -> Value + Send + 'static,
 {
-    let cached = probe_cache().lock().get(&id).map(|p| (p.at, p.value.clone()));
+    let cached = probe_cache()
+        .lock()
+        .get(&id)
+        .map(|p| (p.at, p.value.clone()));
     if let Some((at, value)) = &cached {
         if at.elapsed() < ttl {
             return value.clone();
@@ -267,7 +276,13 @@ where
         let task = tokio::task::spawn_blocking(move || {
             let _slot = Slot(id);
             let value = probe();
-            probe_cache().lock().insert(id, Probe { at: Instant::now(), value: value.clone() });
+            probe_cache().lock().insert(
+                id,
+                Probe {
+                    at: Instant::now(),
+                    value: value.clone(),
+                },
+            );
             value
         });
         if let Ok(Ok(value)) = tokio::time::timeout(wait, task).await {
@@ -318,15 +333,30 @@ fn error_message(body: &Value) -> String {
 /// GET /v1/admin/ops/overview — everything the dashboard polls, in one call.
 /// Always answers promptly: per-database numbers degrade to stale/busy rather
 /// than blocking when the engine is occupied.
-pub(super) async fn overview(State(state): State<Arc<AppState>>, headers: axum::http::HeaderMap) -> AppResult {
+pub(super) async fn overview(
+    State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
+) -> AppResult {
     require_role(&state, &headers, Role::Readonly).await?;
     ensure_sampler(&state);
 
     let st = state.clone();
-    let records = bounded(Duration::from_secs(3), move || st.control.lock().list_databases().unwrap_or_default())
-        .await
-        .map_err(|_| app_error(StatusCode::SERVICE_UNAVAILABLE, "control database is busy; retry shortly"))?;
-    let dbs: Vec<Value> = futures::future::join_all(records.into_iter().map(|rec| database_snapshot(&state, rec))).await;
+    let records = bounded(Duration::from_secs(3), move || {
+        st.control.lock().list_databases().unwrap_or_default()
+    })
+    .await
+    .map_err(|_| {
+        app_error(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "control database is busy; retry shortly",
+        )
+    })?;
+    let dbs: Vec<Value> = futures::future::join_all(
+        records
+            .into_iter()
+            .map(|rec| database_snapshot(&state, rec)),
+    )
+    .await;
 
     let cluster = cluster_state_view(&state).map(|v| {
         json!({
@@ -338,7 +368,7 @@ pub(super) async fn overview(State(state): State<Arc<AppState>>, headers: axum::
     });
 
     let mut handlers = crate::metrics::global().handler_stats();
-    handlers.sort_by(|a, b| b.count.cmp(&a.count));
+    handlers.sort_by_key(|h| std::cmp::Reverse(h.count));
     let handlers: Vec<Value> = handlers
         .into_iter()
         .map(|h| {
@@ -349,7 +379,10 @@ pub(super) async fn overview(State(state): State<Arc<AppState>>, headers: axum::
             })
         })
         .collect();
-    let requests_total: u64 = handlers.iter().map(|h| h["count"].as_u64().unwrap_or(0)).sum();
+    let requests_total: u64 = handlers
+        .iter()
+        .map(|h| h["count"].as_u64().unwrap_or(0))
+        .sum();
 
     let maintenance: Vec<Value> = crate::metrics::maintenance_aggs_snapshot()
         .into_iter()
@@ -418,10 +451,20 @@ pub(super) async fn memories(
             ))
         }
     };
-    let (memory_type, domain) = (q.memory_type.filter(|s| !s.is_empty()), q.domain.filter(|s| !s.is_empty()));
+    let (memory_type, domain) = (
+        q.memory_type.filter(|s| !s.is_empty()),
+        q.domain.filter(|s| !s.is_empty()),
+    );
     let (rec, engine) = engine_for(&state, id).await?;
     let (rows, total) = bounded(ENGINE_WAIT, move || {
-        engine.list_memories(limit, offset, domain.as_deref(), memory_type.as_deref(), None, &sort)
+        engine.list_memories(
+            limit,
+            offset,
+            domain.as_deref(),
+            memory_type.as_deref(),
+            None,
+            &sort,
+        )
     })
     .await?
     .map_err(|e| app_error(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
@@ -453,28 +496,45 @@ pub(super) async fn recall(
             reason.message(),
         ));
     }
-    let opt = |k: &str| body.get(k).and_then(|v| v.as_str()).filter(|s| !s.is_empty()).map(String::from);
+    let opt = |k: &str| {
+        body.get(k)
+            .and_then(|v| v.as_str())
+            .filter(|s| !s.is_empty())
+            .map(String::from)
+    };
     let (_rec, engine) = engine_for(&state, id).await?;
     let cmd = Command::Recall {
         query,
         top_k,
         memory_type: opt("memory_type"),
         include_consolidated: false,
-        expand_entities: body.get("expand_entities").and_then(|v| v.as_bool()).unwrap_or(false),
+        expand_entities: body
+            .get("expand_entities")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false),
         namespace: opt("namespace"),
         domain: opt("domain"),
         source: None,
         query_embedding: None,
-        include_superseded: body.get("include_superseded").and_then(|v| v.as_bool()).unwrap_or(false),
+        include_superseded: body
+            .get("include_superseded")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false),
         certainty_min: None,
         skip_reinforce: true,
     };
     let start = Instant::now();
-    let Json(mut out) = tokio::time::timeout(RECALL_WAIT, execute_cmd(engine, cmd, state.control.clone(), &state.inflight))
-        .await
-        .map_err(|_| busy_error())??;
+    let Json(mut out) = tokio::time::timeout(
+        RECALL_WAIT,
+        execute_cmd(engine, cmd, state.control.clone(), &state.inflight),
+    )
+    .await
+    .map_err(|_| busy_error())??;
     if let Some(o) = out.as_object_mut() {
-        o.insert("elapsed_ms".into(), json!(start.elapsed().as_secs_f64() * 1000.0));
+        o.insert(
+            "elapsed_ms".into(),
+            json!(start.elapsed().as_secs_f64() * 1000.0),
+        );
     }
     Ok(Json(out))
 }
@@ -496,9 +556,12 @@ pub(super) async fn conflicts(
         namespace: None,
         limit: q.get("limit").and_then(|v| v.parse().ok()).unwrap_or(100),
     };
-    tokio::time::timeout(ENGINE_WAIT, execute_cmd(engine, cmd, state.control.clone(), &state.inflight))
-        .await
-        .map_err(|_| busy_error())?
+    tokio::time::timeout(
+        ENGINE_WAIT,
+        execute_cmd(engine, cmd, state.control.clone(), &state.inflight),
+    )
+    .await
+    .map_err(|_| busy_error())?
 }
 
 #[derive(serde::Deserialize)]
@@ -520,7 +583,9 @@ pub(super) async fn jobs(
         .await
         .map_err(|_| busy_error())?
         .map_err(|e| app_error(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-    Ok(Json(json!({ "jobs": serde_json::to_value(records).unwrap_or(Value::Null) })))
+    Ok(Json(
+        json!({ "jobs": serde_json::to_value(records).unwrap_or(Value::Null) }),
+    ))
 }
 
 #[derive(serde::Deserialize, Default)]
@@ -549,7 +614,10 @@ pub(super) async fn maintenance_run(
     {
         let mut run = maint().lock();
         if run.running {
-            return Err(app_error(StatusCode::CONFLICT, "a maintenance run is already in progress on this node"));
+            return Err(app_error(
+                StatusCode::CONFLICT,
+                "a maintenance run is already in progress on this node",
+            ));
         }
         *run = MaintRun {
             running: true,
@@ -581,7 +649,10 @@ pub(super) async fn maintenance_run(
         tracing::info!(ok = ?run.ok, "studio: maintenance run finished");
     });
 
-    Ok((StatusCode::ACCEPTED, Json(json!({ "started": true, "tenant": q.tenant }))))
+    Ok((
+        StatusCode::ACCEPTED,
+        Json(json!({ "started": true, "tenant": q.tenant })),
+    ))
 }
 
 #[cfg(test)]
@@ -599,7 +670,11 @@ mod tests {
     }
 
     /// A probe that behaves like an engine held by a long maintenance cycle.
-    fn stuck_probe(id: i64, hold: Duration, started: StdArc<AtomicUsize>) -> impl FnOnce() -> Value + Send + 'static {
+    fn stuck_probe(
+        id: i64,
+        hold: Duration,
+        started: StdArc<AtomicUsize>,
+    ) -> impl FnOnce() -> Value + Send + 'static {
         move || {
             started.fetch_add(1, Ordering::SeqCst);
             std::thread::sleep(hold);
@@ -612,9 +687,25 @@ mod tests {
         let id = 9_100_001;
         let started = StdArc::new(AtomicUsize::new(0));
         let t0 = Instant::now();
-        let v = snapshot_with(id, "db".into(), "now".into(), 50 * MS, 10_000 * MS, stuck_probe(id, 600 * MS, started.clone())).await;
-        assert!(t0.elapsed() < 400 * MS, "must answer within the wait budget, took {:?}", t0.elapsed());
-        assert_eq!(v["busy"], json!(true), "no cached numbers yet, so it must say busy: {v}");
+        let v = snapshot_with(
+            id,
+            "db".into(),
+            "now".into(),
+            50 * MS,
+            10_000 * MS,
+            stuck_probe(id, 600 * MS, started.clone()),
+        )
+        .await;
+        assert!(
+            t0.elapsed() < 400 * MS,
+            "must answer within the wait budget, took {:?}",
+            t0.elapsed()
+        );
+        assert_eq!(
+            v["busy"],
+            json!(true),
+            "no cached numbers yet, so it must say busy: {v}"
+        );
         assert_eq!(v["name"], json!("db"));
     }
 
@@ -623,20 +714,52 @@ mod tests {
         let id = 9_100_002;
         let started = StdArc::new(AtomicUsize::new(0));
         for _ in 0..8 {
-            let v = snapshot_with(id, "db".into(), "now".into(), 10 * MS, 10_000 * MS, stuck_probe(id, 500 * MS, started.clone())).await;
+            let v = snapshot_with(
+                id,
+                "db".into(),
+                "now".into(),
+                10 * MS,
+                10_000 * MS,
+                stuck_probe(id, 500 * MS, started.clone()),
+            )
+            .await;
             assert_eq!(v["busy"], json!(true));
         }
-        assert_eq!(started.load(Ordering::SeqCst), 1, "only one engine probe may be in flight per database");
+        assert_eq!(
+            started.load(Ordering::SeqCst),
+            1,
+            "only one engine probe may be in flight per database"
+        );
     }
 
     #[tokio::test]
     async fn once_the_engine_frees_up_fresh_numbers_flow_again() {
         let id = 9_100_003;
         let started = StdArc::new(AtomicUsize::new(0));
-        let _ = snapshot_with(id, "db".into(), "now".into(), 10 * MS, 10_000 * MS, stuck_probe(id, 150 * MS, started.clone())).await;
+        let _ = snapshot_with(
+            id,
+            "db".into(),
+            "now".into(),
+            10 * MS,
+            10_000 * MS,
+            stuck_probe(id, 150 * MS, started.clone()),
+        )
+        .await;
         tokio::time::sleep(400 * MS).await; // the stuck probe finishes and fills the cache
-        let v = snapshot_with(id, "db".into(), "now".into(), 10 * MS, 10_000 * MS, || json!({"unused": true})).await;
-        assert_eq!(v["active_memories"], json!(1), "the finished probe's numbers are served from cache: {v}");
+        let v = snapshot_with(
+            id,
+            "db".into(),
+            "now".into(),
+            10 * MS,
+            10_000 * MS,
+            || json!({"unused": true}),
+        )
+        .await;
+        assert_eq!(
+            v["active_memories"],
+            json!(1),
+            "the finished probe's numbers are served from cache: {v}"
+        );
         assert!(v.get("busy").is_none() && v.get("stale").is_none());
     }
 
@@ -644,11 +767,31 @@ mod tests {
     async fn expired_cache_with_a_stuck_engine_serves_stale_numbers() {
         let id = 9_100_004;
         // Seed a cached value, then make it immediately "expired" with ttl = 0.
-        let first = snapshot_with(id, "db".into(), "now".into(), 500 * MS, 10_000 * MS, move || ok_value(id, 42)).await;
+        let first = snapshot_with(
+            id,
+            "db".into(),
+            "now".into(),
+            500 * MS,
+            10_000 * MS,
+            move || ok_value(id, 42),
+        )
+        .await;
         assert_eq!(first["active_memories"], json!(42));
         let started = StdArc::new(AtomicUsize::new(0));
-        let v = snapshot_with(id, "db".into(), "now".into(), 10 * MS, Duration::ZERO, stuck_probe(id, 400 * MS, started)).await;
-        assert_eq!(v["stale"], json!(true), "must fall back to the last known numbers: {v}");
+        let v = snapshot_with(
+            id,
+            "db".into(),
+            "now".into(),
+            10 * MS,
+            Duration::ZERO,
+            stuck_probe(id, 400 * MS, started),
+        )
+        .await;
+        assert_eq!(
+            v["stale"],
+            json!(true),
+            "must fall back to the last known numbers: {v}"
+        );
         assert_eq!(v["active_memories"], json!(42));
         assert!(v.get("age_secs").is_some());
     }
@@ -656,15 +799,29 @@ mod tests {
     #[tokio::test]
     async fn a_panicking_probe_releases_its_slot() {
         let id = 9_100_005;
-        let v = snapshot_with(id, "db".into(), "now".into(), 200 * MS, 10_000 * MS, || -> Value { panic!("engine blew up") }).await;
+        let v = snapshot_with(
+            id,
+            "db".into(),
+            "now".into(),
+            200 * MS,
+            10_000 * MS,
+            || -> Value { panic!("engine blew up") },
+        )
+        .await;
         assert_eq!(v["busy"], json!(true));
         tokio::time::sleep(50 * MS).await;
-        assert!(!probe_busy().lock().contains(&id), "the single-flight slot must be freed even when the probe panics");
+        assert!(
+            !probe_busy().lock().contains(&id),
+            "the single-flight slot must be freed even when the probe panics"
+        );
     }
 
     #[test]
     fn error_message_prefers_the_nested_server_shape() {
-        assert_eq!(error_message(&json!({"error": {"message": "deep"}})), "deep");
+        assert_eq!(
+            error_message(&json!({"error": {"message": "deep"}})),
+            "deep"
+        );
         assert_eq!(error_message(&json!({"message": "flat"})), "flat");
         assert_eq!(error_message(&json!({"error": "str"})), "str");
     }

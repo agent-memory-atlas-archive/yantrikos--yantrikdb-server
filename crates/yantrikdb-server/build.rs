@@ -26,7 +26,9 @@ fn content_type(path: &Path) -> &'static str {
 }
 
 fn walk(dir: &Path, out: &mut Vec<PathBuf>) {
-    let Ok(entries) = fs::read_dir(dir) else { return };
+    let Ok(entries) = fs::read_dir(dir) else {
+        return;
+    };
     for entry in entries.flatten() {
         let path = entry.path();
         if path.is_dir() {
@@ -59,7 +61,12 @@ fn main() {
             .to_string_lossy()
             .replace('\\', "/");
         let abs = file.to_string_lossy().replace('\\', "/");
-        writeln!(out, "    ({rel:?}, {:?}, include_bytes!({abs:?})),", content_type(file)).unwrap();
+        writeln!(
+            out,
+            "    ({rel:?}, {:?}, include_bytes!({abs:?})),",
+            content_type(file)
+        )
+        .unwrap();
     }
     writeln!(out, "];").unwrap();
 }

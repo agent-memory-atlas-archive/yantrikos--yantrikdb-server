@@ -1404,7 +1404,10 @@ const STUDIO_CSP: &str = concat!(
 fn serve_studio_asset(key: &str) -> axum::response::Response {
     use axum::http::header;
     use axum::response::IntoResponse;
-    match studio_assets::ASSETS.iter().find(|(path, _, _)| *path == key) {
+    match studio_assets::ASSETS
+        .iter()
+        .find(|(path, _, _)| *path == key)
+    {
         Some((_, content_type, bytes)) => (
             [
                 (header::CONTENT_TYPE, *content_type),
@@ -9967,8 +9970,14 @@ mod studio_embed_tests {
 
     #[test]
     fn content_types_match_extensions() {
-        assert_eq!(asset("assets/js/main.js").unwrap().1, "text/javascript; charset=utf-8");
-        assert_eq!(asset("assets/css/main.css").unwrap().1, "text/css; charset=utf-8");
+        assert_eq!(
+            asset("assets/js/main.js").unwrap().1,
+            "text/javascript; charset=utf-8"
+        );
+        assert_eq!(
+            asset("assets/css/main.css").unwrap().1,
+            "text/css; charset=utf-8"
+        );
         assert_eq!(asset("index.html").unwrap().1, "text/html; charset=utf-8");
     }
 
@@ -9978,10 +9987,16 @@ mod studio_embed_tests {
         let mut seen = 0;
         for part in html.split("/admin/assets/").skip(1) {
             let rel: String = part.chars().take_while(|c| *c != '"').collect();
-            assert!(asset(&format!("assets/{rel}")).is_some(), "index.html references missing asset {rel}");
+            assert!(
+                asset(&format!("assets/{rel}")).is_some(),
+                "index.html references missing asset {rel}"
+            );
             seen += 1;
         }
-        assert!(seen >= 2, "index.html should reference the stylesheet and entry module");
+        assert!(
+            seen >= 2,
+            "index.html should reference the stylesheet and entry module"
+        );
     }
 
     #[test]
@@ -9996,7 +10011,10 @@ mod studio_embed_tests {
         // Every <script> must be an external module, or the strict CSP would block it.
         for tag in html.split("<script").skip(1) {
             let head = tag.split('>').next().unwrap();
-            assert!(head.contains("src="), "inline <script> in index.html: {head}");
+            assert!(
+                head.contains("src="),
+                "inline <script> in index.html: {head}"
+            );
         }
     }
 }
