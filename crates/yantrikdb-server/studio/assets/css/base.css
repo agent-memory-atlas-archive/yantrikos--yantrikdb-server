@@ -1,0 +1,10 @@
+/* Reset and element defaults. */
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;font-family:var(--sans);background:var(--bg);color:var(--ink);font-size:14px;-webkit-font-smoothing:antialiased;font-feature-settings:"tnum" 1,"cv11" 1;overflow:hidden}
+body::before{content:"";position:fixed;inset:0;background:var(--aurora);pointer-events:none;z-index:0}
+.hidden{display:none!important}
+a{color:var(--accent)}
+::selection{background:rgba(124,140,255,.35)}
+::-webkit-scrollbar{width:10px;height:10px}::-webkit-scrollbar-thumb{background:var(--line2);border-radius:8px;border:2px solid transparent;background-clip:padding-box}::-webkit-scrollbar-track{background:transparent}
+svg.i{width:1.05em;height:1.05em;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none;vertical-align:-.15em}

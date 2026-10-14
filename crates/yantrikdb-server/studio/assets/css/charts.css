@@ -1,0 +1,20 @@
+/* Charts, legends and the cluster topology graphic. */
+/* charts */
+.chartbox{position:relative}
+.chartbox svg{width:100%;height:auto;display:block;overflow:visible}
+.chartbox .cross{position:absolute;top:0;bottom:18px;width:1px;background:var(--line2);pointer-events:none;display:none}
+.chartbox .tip{position:absolute;top:4px;pointer-events:none;display:none;background:var(--panel-solid);border:1px solid var(--line2);border-radius:9px;padding:.4rem .6rem;font-size:.72rem;box-shadow:var(--shadow);white-space:nowrap;z-index:5}
+.chartbox .tip b{display:block;color:var(--muted);font-weight:600;font-size:.66rem;margin-bottom:.15rem}
+.legend{display:flex;gap:.9rem;font-size:.72rem;color:var(--muted);margin-top:.4rem}
+.legend i{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:.3rem}
+
+/* topology */
+.topo{width:100%;height:auto;max-height:340px;display:block;margin:0 auto}
+.topo .flow{stroke-dasharray:5 6;animation:flow 1.1s linear infinite}
+@keyframes flow{to{stroke-dashoffset:-22}}
+.ncards{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:.9rem}
+.ncard{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:.9rem 1rem}
+.ncard.leader{border-color:var(--accent);box-shadow:var(--glow)}
+.ncard .top{display:flex;align-items:center;gap:.5rem;margin-bottom:.4rem}
+dl.rows{display:grid;grid-template-columns:auto 1fr;gap:.22rem .8rem;font-size:.78rem;margin:.5rem 0 0}
+dl.rows dt{color:var(--muted)}dl.rows dd{margin:0;font-family:var(--mono);text-align:right;word-break:break-all}

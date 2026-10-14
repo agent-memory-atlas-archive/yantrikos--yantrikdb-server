@@ -1,0 +1,22 @@
+/* Design tokens: colour, type and elevation. Theme = [data-theme] on <html>. */
+:root{
+  --bg:#070a12; --bg2:#0b1020; --panel:rgba(20,26,44,.72); --panel-solid:#121a2e; --panel2:rgba(255,255,255,.035);
+  --ink:#e8ecf6; --ink2:#b4bdd4; --muted:#7c88a6; --line:rgba(140,160,210,.14); --line2:rgba(140,160,210,.26);
+  --accent:#7c8cff; --accent2:#b07cff; --accent3:#35d4ee;
+  --ok:#34d399; --warn:#fbbf24; --bad:#fb7185;
+  --t-epi:#35d4ee; --t-sem:#b07cff; --t-pro:#fbbf24; --t-oth:#7c88a6;
+  --shadow:0 10px 40px rgba(0,0,0,.45); --glow:0 0 0 1px rgba(124,140,255,.35),0 8px 32px rgba(124,140,255,.18);
+  --mono:ui-monospace,"SF Mono",SFMono-Regular,"JetBrains Mono",Menlo,Consolas,monospace;
+  --sans:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --grad:linear-gradient(135deg,#7c8cff 0%,#b07cff 55%,#35d4ee 120%);
+  --aurora:radial-gradient(900px 500px at 12% -10%,rgba(124,140,255,.20),transparent 60%),radial-gradient(700px 420px at 92% 0%,rgba(176,124,255,.14),transparent 60%),radial-gradient(800px 500px at 60% 110%,rgba(53,212,238,.10),transparent 60%);
+}
+:root[data-theme=light]{
+  --bg:#f2f4fb; --bg2:#e9edf8; --panel:rgba(255,255,255,.82); --panel-solid:#fff; --panel2:rgba(20,30,70,.035);
+  --ink:#141a2e; --ink2:#3a4562; --muted:#6a7691; --line:rgba(40,60,120,.12); --line2:rgba(40,60,120,.22);
+  --accent:#5561ee; --accent2:#8d4fe6; --accent3:#0aa6c6;
+  --ok:#10a574; --warn:#c88a05; --bad:#e0455f;
+  --t-epi:#0aa6c6; --t-sem:#8d4fe6; --t-pro:#c88a05;
+  --shadow:0 10px 30px rgba(30,40,90,.12); --glow:0 0 0 1px rgba(85,97,238,.4),0 8px 28px rgba(85,97,238,.16);
+  --aurora:radial-gradient(900px 500px at 12% -10%,rgba(85,97,238,.14),transparent 60%),radial-gradient(700px 420px at 92% 0%,rgba(141,79,230,.10),transparent 60%);
+}

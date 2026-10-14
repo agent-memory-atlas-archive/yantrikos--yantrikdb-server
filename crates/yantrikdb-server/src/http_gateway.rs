@@ -1382,11 +1382,56 @@ async fn yrp_topology(State(state): State<Arc<AppState>>) -> Json<Value> {
     }))
 }
 
-/// Admin studio: a single self-contained page served from the binary at
-/// `/admin` — no build step, no external assets (works air-gapped). Polls
-/// `/v1/cluster/topology` and renders the live cluster. Theme-aware.
-async fn admin_studio() -> axum::response::Html<&'static str> {
-    axum::response::Html(include_str!("admin/studio.html"))
+/// Studio web app, embedded at build time (see `build.rs`). Served from the
+/// binary — no external assets, so it works air-gapped.
+mod studio_assets {
+    include!(concat!(env!("OUT_DIR"), "/studio_assets.rs"));
+}
+
+/// Strict CSP: scripts only from this origin (the app uses no inline script
+/// or handlers), no framing, no outbound connections beyond the API.
+const STUDIO_CSP: &str = concat!(
+    "default-src 'self'; ",
+    "script-src 'self'; ",
+    "style-src 'self' 'unsafe-inline'; ",
+    "img-src 'self' data:; ",
+    "connect-src 'self'; ",
+    "base-uri 'none'; ",
+    "form-action 'none'; ",
+    "frame-ancestors 'none'",
+);
+
+fn serve_studio_asset(key: &str) -> axum::response::Response {
+    use axum::http::header;
+    use axum::response::IntoResponse;
+    match studio_assets::ASSETS.iter().find(|(path, _, _)| *path == key) {
+        Some((_, content_type, bytes)) => (
+            [
+                (header::CONTENT_TYPE, *content_type),
+                // Revalidate every load: the app ships inside the binary, so an
+                // upgrade must never be masked by a stale cached module.
+                (header::CACHE_CONTROL, "no-cache"),
+                (header::X_CONTENT_TYPE_OPTIONS, "nosniff"),
+                (header::REFERRER_POLICY, "no-referrer"),
+                (header::X_FRAME_OPTIONS, "DENY"),
+                (header::CONTENT_SECURITY_POLICY, STUDIO_CSP),
+            ],
+            *bytes,
+        )
+            .into_response(),
+        None => StatusCode::NOT_FOUND.into_response(),
+    }
+}
+
+/// GET /admin — the Studio shell.
+async fn admin_studio() -> axum::response::Response {
+    serve_studio_asset("index.html")
+}
+
+/// GET /admin/assets/{*path} — the app's modules and stylesheets. Lookup is
+/// against the embedded table, so path traversal is not expressible.
+async fn admin_studio_asset(AxumPath(path): AxumPath<String>) -> axum::response::Response {
+    serve_studio_asset(&format!("assets/{path}"))
 }
 
 /// Issue #58: keyed `/v1/remember/batch` — the engine's atomic batch path.
@@ -4313,8 +4358,18 @@ async fn admin_maintenance_run(
 ) -> AppResult {
     let _timer = crate::metrics::HandlerTimer::new("admin_maintenance_run");
     require_master_token(&state, &headers)?;
+    let opts = body.map(|b| b.0).unwrap_or_default();
+    run_maintenance_inner(&state, params.tenant.as_deref(), opts).await
+}
 
-    if !node_accepts_writes(&state) {
+/// Shared by the master-token route and the studio's session-authed route
+/// (`admin_ops`): the caller has already authenticated.
+async fn run_maintenance_inner(
+    state: &Arc<AppState>,
+    tenant: Option<&str>,
+    opts: MaintenanceRunBody,
+) -> AppResult {
+    if !node_accepts_writes(state) {
         return Err(app_error(
             StatusCode::CONFLICT,
             "this node does not accept writes (follower/learner); \
@@ -4322,8 +4377,20 @@ async fn admin_maintenance_run(
         ));
     }
 
-    let opts = body.map(|b| b.0).unwrap_or_default();
-    let targets = resolve_maintenance_targets(&state, params.tenant.as_deref())?;
+    // Resolving targets locks the tenant pool and may open engines — keep it
+    // off the async workers so a slow lock can never stall the HTTP server.
+    let targets = {
+        let st = Arc::clone(state);
+        let tenant = tenant.map(String::from);
+        tokio::task::spawn_blocking(move || resolve_maintenance_targets(&st, tenant.as_deref()))
+            .await
+            .map_err(|e| {
+                app_error(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    format!("join error: {e}"),
+                )
+            })??
+    };
 
     let mut results = Vec::with_capacity(targets.len());
     for (_db_id, name, engine) in targets {
@@ -6706,7 +6773,12 @@ async fn correct_deferred() -> AppResult {
 }
 
 /// Build the Axum router.
+#[path = "admin/ops.rs"]
+mod admin_ops;
+
 pub fn router(state: Arc<AppState>) -> Router {
+    admin_ops::mark_start();
+    admin_ops::ensure_sampler(&state);
     let body_limit = state.admission.cfg.max_request_body_bytes;
     // Issue #39 Phase 1: read endpoints that use the RFC 014-B
     // `Principal` substrate. The auth middleware runs on these routes
@@ -6805,6 +6877,8 @@ pub fn router(state: Arc<AppState>) -> Router {
         // Admin studio: aggregated cluster topology + the embedded console
         .route("/v1/cluster/topology", get(yrp_topology))
         .route("/admin", get(admin_studio))
+        .route("/admin/", get(admin_studio))
+        .route("/admin/assets/{*path}", get(admin_studio_asset))
         .route("/v1/admin/control-snapshot", get(control_snapshot))
         // RFC 029/030: replicated control-plane admin (RBAC-gated).
         // Databases + tokens + users committed here replicate through YRP.
@@ -6838,6 +6912,25 @@ pub fn router(state: Arc<AppState>) -> Router {
             get(admin_get_quota).put(admin_set_quota),
         )
         .route("/v1/admin/audit", get(admin_audit))
+        // Studio console: session-authed (RBAC) operational read/run surface.
+        .route("/v1/admin/ops/overview", get(admin_ops::overview))
+        .route(
+            "/v1/admin/ops/databases/{id}/memories",
+            get(admin_ops::memories),
+        )
+        .route(
+            "/v1/admin/ops/databases/{id}/recall",
+            post(admin_ops::recall),
+        )
+        .route(
+            "/v1/admin/ops/databases/{id}/conflicts",
+            get(admin_ops::conflicts),
+        )
+        .route("/v1/admin/ops/jobs", get(admin_ops::jobs))
+        .route(
+            "/v1/admin/ops/maintenance/run",
+            post(admin_ops::maintenance_run),
+        )
         // RFC 031: pack management (small bodies / GET — upload is separate).
         .route("/v1/packs/{digest}", get(pack_transfer))
         .route("/v1/admin/packs", get(admin_pack_list))
@@ -9854,5 +9947,56 @@ mod handoff_1b_regressions {
         let text = String::from_utf8_lossy(&resp);
         assert_eq!(status, 400, "got {status}: {text}");
         assert!(text.contains("provenance"), "must name the gate: {text}");
+    }
+}
+
+#[cfg(test)]
+mod studio_embed_tests {
+    use super::studio_assets::ASSETS;
+
+    fn asset(key: &str) -> Option<&'static (&'static str, &'static str, &'static [u8])> {
+        ASSETS.iter().find(|(p, _, _)| *p == key)
+    }
+
+    #[test]
+    fn shell_and_entrypoints_are_embedded() {
+        for key in ["index.html", "assets/js/main.js", "assets/css/main.css"] {
+            assert!(asset(key).is_some(), "{key} must be embedded by build.rs");
+        }
+    }
+
+    #[test]
+    fn content_types_match_extensions() {
+        assert_eq!(asset("assets/js/main.js").unwrap().1, "text/javascript; charset=utf-8");
+        assert_eq!(asset("assets/css/main.css").unwrap().1, "text/css; charset=utf-8");
+        assert_eq!(asset("index.html").unwrap().1, "text/html; charset=utf-8");
+    }
+
+    #[test]
+    fn index_only_references_embedded_assets() {
+        let html = std::str::from_utf8(asset("index.html").unwrap().2).unwrap();
+        let mut seen = 0;
+        for part in html.split("/admin/assets/").skip(1) {
+            let rel: String = part.chars().take_while(|c| *c != '"').collect();
+            assert!(asset(&format!("assets/{rel}")).is_some(), "index.html references missing asset {rel}");
+            seen += 1;
+        }
+        assert!(seen >= 2, "index.html should reference the stylesheet and entry module");
+    }
+
+    #[test]
+    fn index_declares_the_console() {
+        let html = std::str::from_utf8(asset("index.html").unwrap().2).unwrap();
+        assert!(html.contains("YantrikDB") && html.contains("control console"));
+    }
+
+    #[test]
+    fn index_has_no_inline_script() {
+        let html = std::str::from_utf8(asset("index.html").unwrap().2).unwrap();
+        // Every <script> must be an external module, or the strict CSP would block it.
+        for tag in html.split("<script").skip(1) {
+            let head = tag.split('>').next().unwrap();
+            assert!(head.contains("src="), "inline <script> in index.html: {head}");
+        }
     }
 }

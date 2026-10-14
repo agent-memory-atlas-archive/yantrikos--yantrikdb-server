@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="color-scheme" content="dark light" />
+<title>YantrikDB Studio — control console</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27%3E%3Crect width=%2724%27 height=%2724%27 rx=%276%27 fill=%27%237c8cff%27/%3E%3Cg fill=%27none%27 stroke=%27white%27 stroke-width=%271.8%27%3E%3Cellipse cx=%2712%27 cy=%277%27 rx=%275.5%27 ry=%272%27/%3E%3Cpath d=%27M6.5 7v5c0 1.1 2.5 2 5.5 2s5.500-.9 5.500-2V7M6.500 12v5c0 1.100 2.500 2 5.500 2s5.500-.9 5.500-2v-5%27/%3E%3C/g%3E%3C/svg%3E" />
+<link rel="stylesheet" href="/admin/assets/css/main.css" />
+<link rel="modulepreload" href="/admin/assets/js/main.js" />
+</head>
+<body>
+
+<noscript><p style="padding:2rem;font-family:system-ui">YantrikDB Studio is a JavaScript application. Enable JavaScript to continue.</p></noscript>
+
+<!-- Sign-in (rendered by views/login.js) -->
+<div id="loginview" class="hidden"></div>
+
+<!-- Application shell: chrome is painted by app/shell.js -->
+<div id="shell" class="hidden">
+  <aside id="brand">
+    <div class="logo">
+      <div class="mark"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg></div>
+      <div class="t">YantrikDB<small>Studio</small></div>
+    </div>
+    <nav id="side" aria-label="Primary"></nav>
+    <div id="nodecard"></div>
+  </aside>
+
+  <header id="topbar">
+    <button class="tb" id="burger" data-action="app.menu" title="Menu" aria-label="Menu">☰</button>
+    <button class="tb" id="colbtn" data-action="app.sidebar" title="Collapse sidebar" aria-label="Collapse sidebar"></button>
+    <div class="search" data-action="app.palette" role="button" tabindex="0"><span id="sicon"></span><span class="t">Search pages, databases, actions…</span><kbd>Ctrl K</kbd></div>
+    <div class="spacer"></div>
+    <span class="chip" id="live"></span>
+    <span class="chip"><span class="dot" id="hdot"></span><b id="hmode">—</b></span>
+    <select id="refresh" class="chip" style="padding:.2rem .5rem" data-on-change="app.refresh" title="Auto-refresh" aria-label="Auto-refresh interval">
+      <option value="0">refresh: off</option><option value="3000">every 3s</option><option value="10000">every 10s</option><option value="30000">every 30s</option>
+    </select>
+    <button class="tb" id="helpbtn" data-action="app.help" title="Keyboard shortcuts" aria-label="Keyboard shortcuts"></button>
+    <button class="tb" id="themebtn" data-action="app.theme" title="Toggle theme" aria-label="Toggle theme"></button>
+    <span class="chip"><b id="whoname"></b> <span class="badge accent" id="whorole"></span></span>
+    <button class="tb" id="outbtn" data-action="app.logout" title="Sign out" aria-label="Sign out"></button>
+  </header>
+
+  <main id="main" tabindex="-1"></main>
+</div>
+
+<div id="overlay" class="overlay hidden"></div>
+<div id="drawer" class="drawer hidden" role="complementary"></div>
+<div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+
+<script type="module" src="/admin/assets/js/main.js"></script>
+</body>
+</html>
