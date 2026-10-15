@@ -1,0 +1,10 @@
+{
+  "name": "yantrikdb-studio",
+  "private": true,
+  "type": "module",
+  "description": "YantrikDB Studio — the control console served at /admin. No build step, no runtime dependencies.",
+  "scripts": {
+    "test": "node --test"
+  },
+  "engines": { "node": ">=20" }
+}

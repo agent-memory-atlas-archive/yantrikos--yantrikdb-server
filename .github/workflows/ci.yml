@@ -10,6 +10,19 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  studio:
+    name: Studio (frontend tests)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # Zero dependencies and no build step: the suite is Node's built-in runner.
+      - name: Test Studio
+        working-directory: crates/yantrikdb-server/studio
+        run: npm test
+
   build-and-test:
     strategy:
       fail-fast: false

@@ -1,0 +1,8 @@
+/* Studio stylesheet entry. Order matters. */
+@import url("/admin/assets/css/tokens.css");
+@import url("/admin/assets/css/base.css");
+@import url("/admin/assets/css/layout.css");
+@import url("/admin/assets/css/components.css");
+@import url("/admin/assets/css/charts.css");
+@import url("/admin/assets/css/views.css");
+@import url("/admin/assets/css/responsive.css");

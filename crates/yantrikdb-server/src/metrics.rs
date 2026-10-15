@@ -72,6 +72,32 @@ impl HistogramData {
     }
 }
 
+/// Per-handler latency summary for the studio console. Percentiles are
+/// bucket upper bounds (conservative), not interpolated.
+pub struct HandlerStat {
+    pub handler: String,
+    pub count: u64,
+    pub sum_secs: f64,
+    pub p50: f64,
+    pub p95: f64,
+    pub p99: f64,
+}
+
+impl HistogramData {
+    fn quantile(&self, q: f64) -> f64 {
+        if self.count == 0 {
+            return 0.0;
+        }
+        let target = (self.count as f64 * q).ceil() as u64;
+        self.buckets
+            .iter()
+            .find(|(_, c)| *c >= target)
+            .map(|(b, _)| *b)
+            // Beyond the last bucket: report the last boundary (a floor).
+            .unwrap_or_else(|| self.buckets.last().map(|(b, _)| *b).unwrap_or(0.0))
+    }
+}
+
 /// Global metrics store. One instance per process.
 pub struct MetricsStore {
     handler_durations: Mutex<HashMap<String, HistogramData>>,
@@ -190,6 +216,21 @@ impl MetricsStore {
         map.entry(handler.to_string())
             .or_insert_with(HistogramData::new)
             .observe(duration_secs);
+    }
+
+    /// Snapshot of per-handler latency, for the studio console.
+    pub fn handler_stats(&self) -> Vec<HandlerStat> {
+        let map = self.handler_durations.lock();
+        map.iter()
+            .map(|(h, d)| HandlerStat {
+                handler: h.clone(),
+                count: d.count,
+                sum_secs: d.sum,
+                p50: d.quantile(0.50),
+                p95: d.quantile(0.95),
+                p99: d.quantile(0.99),
+            })
+            .collect()
     }
 
     /// Record time spent waiting for the engine mutex.
