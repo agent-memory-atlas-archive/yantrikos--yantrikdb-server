@@ -15,6 +15,7 @@ YantrikDB is the **memory subsystem for AI agents**. Not a vector store, not a k
 - **Explains** — recall tells you *why* each result was returned
 - **Personalizes** — emergent personality traits from access patterns
 - **Replicates** — multi-node CRDT-based with auto failover
+- **Admin console** — Studio, a built-in `/admin` dashboard for live metrics, memory browsing, query console, conflict review, and cluster ops; embedded in the binary, no separate install
 
 ## Three binaries
 
